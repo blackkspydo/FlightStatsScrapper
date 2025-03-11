@@ -1,0 +1,28 @@
+name = "flight-stats-scraper"
+main = "src/index.ts"
+compatibility_date = "2024-03-11"
+
+# KV Namespace for caching flight data
+kv_namespaces = [
+  { binding = "FLIGHTS_KV", id = "flights-cache", preview_id = "flights-cache-preview" }
+]
+
+[triggers]
+crons = []
+
+[vars]
+# Add your custom variables here
+
+[env.production]
+# Production-specific settings
+
+[env.staging]
+# Staging-specific settings
+
+# Enable source maps for debugging
+[build]
+command = "npm run build"
+watch_dir = "src"
+
+[miniflare]
+kv_persist = true # Persist KV data between runs in development

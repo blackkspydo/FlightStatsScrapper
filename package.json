@@ -1,0 +1,25 @@
+{
+  "name": "flight-stats-scraper",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker to scrape flight data from FlightStats",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "scraping"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.28.1"
+  }
+}
