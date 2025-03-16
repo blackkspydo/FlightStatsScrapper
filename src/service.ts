@@ -85,9 +85,10 @@ async function fetchFlightDataForTimeSlot(
     const flights = data.props.initialState.flightTracker.route.flights;
     const currentDate = formatDate(date);
 
-    return flights.map((flight: RawFlightData) => 
-      transformFlightData(flight, type, currentDate)
-    );
+    // Filter out codeshare flights and transform the remaining ones
+    return flights
+      .filter((flight: RawFlightData) => !flight.isCodeshare)
+      .map((flight: RawFlightData) => transformFlightData(flight, type, currentDate));
   } catch (error) {
     console.error(`Error processing data from ${url}:`, error);
     return [];
@@ -123,7 +124,7 @@ export async function refreshAllFlightData(env: { FLIGHTS_KV: KVNamespace }): Pr
 
   // Store all flights in cache
   if (allFlights.length > 0) {
-    console.log(`Storing ${allFlights.length} flights in cache`);
+    console.log(`Storing ${allFlights.length} non-codeshare flights in cache`);
     await env.FLIGHTS_KV.put(
       CONFIG.CACHE.ALL_FLIGHTS_KEY,
       JSON.stringify(allFlights),
