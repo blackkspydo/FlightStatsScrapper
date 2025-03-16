@@ -4,8 +4,8 @@ export const CONFIG = {
     TIME_SLOTS: [0, 6, 12, 18],
     DAYS_TO_FETCH: 4, // Today + 3 days = 4 days total
     ENDPOINTS: {
-        DEPARTURES: '/departures-pmi',
-        ARRIVALS: '/arrivals-pmi'
+        FLIGHTS: '/flights',
+        REFRESH: '/refresh-data'
     },
     HEADERS: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -23,6 +23,10 @@ export const CONFIG = {
     RESPONSE_HEADERS: {
         'content-type': 'application/json;charset=UTF-8',
         'access-control-allow-origin': '*',
+    },
+    CACHE: {
+        ALL_FLIGHTS_KEY: 'all_flights_data',
+        EXPIRATION: 60 * 60 * 3, // 3 hours in seconds
     }
 };
 export const HTML_MARKERS = {

@@ -46,6 +46,23 @@ export function isOvernightFlight(departureTime: string, arrivalTime: string): b
 }
 
 /**
+ * Calculates flight duration in minutes
+ */
+export function calculateDuration(departureTime: string, arrivalTime: string, isOvernight: boolean): number {
+  const [depHours, depMinutes] = departureTime.split(':').map(Number);
+  const [arrHours, arrMinutes] = arrivalTime.split(':').map(Number);
+  
+  let durationMinutes = (arrHours * 60 + arrMinutes) - (depHours * 60 + depMinutes);
+  
+  // If it's an overnight flight, add 24 hours (1440 minutes)
+  if (isOvernight || durationMinutes < 0) {
+    durationMinutes += 1440;
+  }
+  
+  return durationMinutes;
+}
+
+/**
  * Creates a URL for fetching flight data
  */
 export function createFlightDataUrl(baseUrl: string, type: string, airport: string, date: Date, hour: number): string {

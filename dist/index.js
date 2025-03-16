@@ -1,9 +1,9 @@
 import { CONFIG } from './config';
-import { fetchAllFlightData } from './service';
-import { createJsonResponse } from './utils';
+import { getFlights, refreshAllFlightData } from './service';
+import { createJsonResponse, formatDate } from './utils';
 /**
  * Main worker entry point
- * Handles requests to /departures-pmi and /arrivals-pmi endpoints
+ * Handles requests to /flights endpoint with query parameters
  * Uses KV storage for caching responses
  */
 export default {
@@ -26,19 +26,50 @@ export default {
                 return createJsonResponse({ error: 'Method not allowed' }, 405);
             }
             // Route handling
-            if (path === CONFIG.ENDPOINTS.DEPARTURES) {
-                const flights = await fetchAllFlightData('departures', env);
-                return createJsonResponse({
-                    totalFlights: flights.length,
-                    flights
-                });
+            if (path === CONFIG.ENDPOINTS.FLIGHTS) {
+                // Get query parameters
+                const origin = url.searchParams.get('origin')?.toUpperCase();
+                const destination = url.searchParams.get('destination')?.toUpperCase();
+                const date = url.searchParams.get('date');
+                console.log(`Received request - Origin: ${origin}, Destination: ${destination}, Date: ${date}`);
+                // Validate parameters
+                if (!origin || !destination || !date) {
+                    return createJsonResponse({ error: 'Missing required parameters: origin, destination, date' }, 400);
+                }
+                // Validate date format and range
+                try {
+                    const requestDate = new Date(date);
+                    if (isNaN(requestDate.getTime())) {
+                        throw new Error('Invalid date');
+                    }
+                    // Check if date is within range (today + 3 days)
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const maxDate = new Date(today);
+                    maxDate.setDate(maxDate.getDate() + CONFIG.DAYS_TO_FETCH - 1);
+                    if (requestDate < today || requestDate > maxDate) {
+                        return createJsonResponse({
+                            error: `Date must be between ${formatDate(today)} and ${formatDate(maxDate)}`
+                        }, 400);
+                    }
+                    // Format date consistently
+                    const formattedDate = formatDate(requestDate);
+                    console.log(`Formatted date: ${formattedDate}`);
+                    // Get flights matching criteria
+                    const flights = await getFlights(origin, destination, formattedDate, env);
+                    return createJsonResponse({
+                        totalFlights: flights.length,
+                        flights
+                    });
+                }
+                catch (error) {
+                    return createJsonResponse({ error: 'Invalid date format. Use YYYY-MM-DD' }, 400);
+                }
             }
-            else if (path === CONFIG.ENDPOINTS.ARRIVALS) {
-                const flights = await fetchAllFlightData('arrivals', env);
-                return createJsonResponse({
-                    totalFlights: flights.length,
-                    flights
-                });
+            else if (path === CONFIG.ENDPOINTS.REFRESH) {
+                // Manual trigger for refreshing flight data
+                await refreshAllFlightData(env);
+                return createJsonResponse({ message: 'Flight data refreshed successfully' });
             }
             else {
                 return createJsonResponse({ error: 'Not Found' }, 404);
@@ -50,4 +81,8 @@ export default {
             return createJsonResponse({ error: errorMessage }, 500);
         }
     },
+    // Cron trigger for refreshing flight data
+    async scheduled(event, env, ctx) {
+        ctx.waitUntil(refreshAllFlightData(env));
+    }
 };

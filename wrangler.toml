@@ -7,8 +7,9 @@ compatibility_date = "2024-03-11"
 binding = "FLIGHTS_KV"
 id = "f4815bc3b821487da2b09b8a67067e7c"
 
+# Cron trigger to refresh flight data every 3 hours
 [triggers]
-crons = []
+crons = ["0 */3 * * *"]
 
 [vars]
 # Add your custom variables here

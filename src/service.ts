@@ -1,5 +1,5 @@
 import { CONFIG, HTML_MARKERS } from './config';
-import { FlightData, FlightType } from './types';
+import { Flight, FlightType, RawFlightData } from './types';
 import {
   createFlightDataUrl,
   extractJsonFromHtml,
@@ -7,110 +7,55 @@ import {
   generateDates,
   getNextDayDate,
   getPreviousDayDate,
-  isOvernightFlight
+  isOvernightFlight,
+  calculateDuration
 } from './utils';
 
-interface RawFlightData {
-  carrier: {
-    fs: string;
-    name: string;
-    flightNumber: string;
-  };
-  departureTime: {
-    time24: string;
-  };
-  arrivalTime: {
-    time24: string;
-  };
-  airport: {
-    fs: string;
-    city: string;
-  };
-  operatedBy: string | null;
-  isCodeshare: boolean;
-}
-
 /**
- * Determines the correct dates for departure and arrival based on flight times
- */
-function calculateFlightDates(
-  type: FlightType,
-  currentDate: string,
-  departureTime: string,
-  arrivalTime: string
-): { departureDate: string; arrivalDate: string } {
-  if (type === 'arrivals') {
-    // For arrivals between 00:00-06:00, the departure was the previous day
-    if (arrivalTime >= '00:00' && arrivalTime <= '06:00') {
-      return {
-        departureDate: getPreviousDayDate(currentDate),
-        arrivalDate: currentDate
-      };
-    }
-    // For arrivals between 22:00-23:59, both departure and arrival were the previous day
-    if (arrivalTime >= '22:00' && arrivalTime <= '23:59') {
-      const previousDay = getPreviousDayDate(currentDate);
-      return {
-        departureDate: previousDay,
-        arrivalDate: previousDay
-      };
-    }
-    // Same day flight
-    return {
-      departureDate: currentDate,
-      arrivalDate: currentDate
-    };
-  } else {
-    // For departures
-    if (isOvernightFlight(departureTime, arrivalTime)) {
-      return {
-        departureDate: currentDate,
-        arrivalDate: getNextDayDate(currentDate)
-      };
-    }
-    // Same day flight
-    return {
-      departureDate: currentDate,
-      arrivalDate: currentDate
-    };
-  }
-}
-
-/**
- * Transforms raw flight data into a standardized format
+ * Transforms raw flight data into the new standardized format
  */
 function transformFlightData(
   flight: RawFlightData,
   type: FlightType,
   currentDate: string,
-): FlightData {
+): Flight {
   const departureTime = flight.departureTime.time24;
   const arrivalTime = flight.arrivalTime.time24;
   
-  const { departureDate, arrivalDate } = calculateFlightDates(
-    type,
-    currentDate,
-    departureTime,
-    arrivalTime
-  );
+  let departureDate = currentDate;
+  let arrivalDate = currentDate;
+  
+  // Calculate correct dates for overnight flights
+  if (type === 'arrivals') {
+    if (arrivalTime >= '00:00' && arrivalTime <= '06:00') {
+      departureDate = getPreviousDayDate(currentDate);
+    } else if (arrivalTime >= '22:00' && arrivalTime <= '23:59') {
+      departureDate = getPreviousDayDate(currentDate);
+      arrivalDate = getPreviousDayDate(currentDate);
+    }
+  } else if (isOvernightFlight(departureTime, arrivalTime)) {
+    arrivalDate = getNextDayDate(currentDate);
+  }
+
+  const originIata = type === 'departures' ? CONFIG.AIRPORT : flight.airport.fs;
+  const destinationIata = type === 'departures' ? flight.airport.fs : CONFIG.AIRPORT;
+  const originName = type === 'departures' ? 'Palma de Mallorca' : flight.airport.city;
+  const destinationName = type === 'departures' ? flight.airport.city : 'Palma de Mallorca';
 
   return {
-    flightNumber: `${flight.carrier.fs}${flight.carrier.flightNumber}`,
-    airline: flight.carrier.name,
-    departure: {
-      airport: type === 'departures' ? CONFIG.AIRPORT : flight.airport.fs,
-      city: type === 'departures' ? 'Palma de Mallorca' : flight.airport.city,
-      time: departureTime,
-      date: departureDate,
-    },
-    arrival: {
-      airport: type === 'departures' ? flight.airport.fs : CONFIG.AIRPORT,
-      city: type === 'departures' ? flight.airport.city : 'Palma de Mallorca',
-      time: arrivalTime,
-      date: arrivalDate,
-    },
-    operatedBy: flight.operatedBy || null,
-    isCodeshare: flight.isCodeshare || false
+    flight_id: `${flight.carrier.fs}${flight.carrier.flightNumber}_${departureDate}`,
+    origin_iata: originIata,
+    destination_iata: destinationIata,
+    origin_name: originName,
+    destination_name: destinationName,
+    departure: departureTime,
+    arrival: arrivalTime,
+    departure_date: departureDate,
+    arrival_date: arrivalDate,
+    duration: calculateDuration(departureTime, arrivalTime, departureDate !== arrivalDate),
+    company: flight.carrier.name,
+    company_logo: `https://www.gstatic.com/flights/airline_logos/70px/${flight.carrier.fs}.png`,
+    flight: `${flight.carrier.fs}${flight.carrier.flightNumber}`
   };
 }
 
@@ -121,7 +66,7 @@ async function fetchFlightDataForTimeSlot(
   type: FlightType,
   date: Date,
   hour: number
-): Promise<FlightData[]> {
+): Promise<Flight[]> {
   const url = createFlightDataUrl(CONFIG.BASE_URL, type, CONFIG.AIRPORT, date, hour);
   
   const response = await fetch(url, {
@@ -150,16 +95,9 @@ async function fetchFlightDataForTimeSlot(
 }
 
 /**
- * Creates a cache key for flight data
- */
-function createCacheKey(type: FlightType, date: string): string {
-  return `flights:${type}:${date}`;
-}
-
-/**
  * Fetches all flight data for a specific date concurrently
  */
-async function fetchFlightDataForDate(type: FlightType, date: Date): Promise<FlightData[]> {
+async function fetchFlightDataForDate(type: FlightType, date: Date): Promise<Flight[]> {
   const fetchPromises = CONFIG.TIME_SLOTS.map(hour => 
     fetchFlightDataForTimeSlot(type, date, hour)
   );
@@ -169,37 +107,72 @@ async function fetchFlightDataForDate(type: FlightType, date: Date): Promise<Fli
 }
 
 /**
- * Fetches all flight data for the specified type (departures or arrivals)
- * Uses concurrent requests and caching for optimization
+ * Refreshes all flight data and stores in cache
  */
-export async function fetchAllFlightData(type: FlightType, env?: { FLIGHTS_KV?: KVNamespace }): Promise<FlightData[]> {
+export async function refreshAllFlightData(env: { FLIGHTS_KV: KVNamespace }): Promise<void> {
   const dates = Array.from(generateDates(CONFIG.DAYS_TO_FETCH));
-  const allFlights: FlightData[] = [];
+  const allFlights: Flight[] = [];
 
-  // Process dates in parallel
-  const fetchPromises = dates.map(async (date) => {
-    const dateStr = formatDate(date);
-    const cacheKey = createCacheKey(type, dateStr);
-
-    // Try to get from cache first
-    if (env?.FLIGHTS_KV) {
-      const cached = await env.FLIGHTS_KV.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached) as FlightData[];
-      }
+  // Fetch both arrivals and departures
+  for (const type of ['arrivals', 'departures'] as FlightType[]) {
+    for (const date of dates) {
+      const flights = await fetchFlightDataForDate(type, date);
+      allFlights.push(...flights);
     }
+  }
 
-    // If not in cache, fetch and store
-    const flights = await fetchFlightDataForDate(type, date);
-    
-    if (env?.FLIGHTS_KV && flights.length > 0) {
-      // Cache for 5 minutes
-      await env.FLIGHTS_KV.put(cacheKey, JSON.stringify(flights), { expirationTtl: 300 });
-    }
+  // Store all flights in cache
+  if (allFlights.length > 0) {
+    console.log(`Storing ${allFlights.length} flights in cache`);
+    await env.FLIGHTS_KV.put(
+      CONFIG.CACHE.ALL_FLIGHTS_KEY,
+      JSON.stringify(allFlights),
+      { expirationTtl: CONFIG.CACHE.EXPIRATION }
+    );
+  }
+}
 
-    return flights;
+/**
+ * Gets flights matching the specified criteria
+ */
+export async function getFlights(
+  origin: string,
+  destination: string,
+  date: string,
+  env: { FLIGHTS_KV: KVNamespace }
+): Promise<Flight[]> {
+  console.log(`Searching flights: ${origin} -> ${destination} on ${date}`);
+  
+  // Try to get from cache
+  const cached = await env.FLIGHTS_KV.get(CONFIG.CACHE.ALL_FLIGHTS_KEY);
+  if (!cached) {
+    console.log('Cache miss, refreshing data...');
+    await refreshAllFlightData(env);
+    return getFlights(origin, destination, date, env);
+  }
+
+  const allFlights = JSON.parse(cached) as Flight[];
+  console.log(`Total flights in cache: ${allFlights.length}`);
+  
+  // Log some sample flights for debugging
+  console.log('Sample flight dates:');
+  allFlights.slice(0, 3).forEach(f => {
+    console.log(`Flight ${f.flight}: ${f.departure_date}, ${f.origin_iata} -> ${f.destination_iata}`);
   });
 
-  const results = await Promise.all(fetchPromises);
-  return results.flat();
+  // Filter flights based on criteria
+  const matchingFlights = allFlights.filter(flight => {
+    const matches = flight.origin_iata === origin &&
+      flight.destination_iata === destination &&
+      flight.departure_date === date;
+    
+    if (matches) {
+      console.log(`Found matching flight: ${flight.flight}`);
+    }
+    
+    return matches;
+  });
+
+  console.log(`Found ${matchingFlights.length} matching flights`);
+  return matchingFlights;
 }
