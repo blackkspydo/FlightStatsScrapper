@@ -54,7 +54,7 @@ function transformFlightData(
     arrival_date: arrivalDate,
     duration: calculateDuration(departureTime, arrivalTime, departureDate !== arrivalDate),
     company: flight.carrier.name,
-    company_logo: `https://github.com/Jxck-S/airline-logos/blob/36e40d246d3781966e17fb2add118f0815ce5dad/flightaware_logos/${flight.carrier.fs}.png`,
+    company_logo: `https://raw.githubusercontent.com/Jxck-S/airline-logos/refs/heads/main/flightaware_logos/${flight.carrier.fs}.png`,
     flight: `${flight.carrier.fs}${flight.carrier.flightNumber}`
   };
 }
