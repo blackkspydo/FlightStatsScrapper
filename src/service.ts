@@ -1,4 +1,5 @@
 import { CONFIG, HTML_MARKERS } from './config';
+import { ICAO_IATA_CODES } from './constant';
 import { Flight, FlightType, RawFlightData } from './types';
 import {
   createFlightDataUrl,
@@ -41,6 +42,12 @@ function transformFlightData(
   const destinationIata = type === 'departures' ? flight.airport.fs : CONFIG.AIRPORT;
   const originName = type === 'departures' ? 'Palma de Mallorca' : flight.airport.city;
   const destinationName = type === 'departures' ? flight.airport.city : 'Palma de Mallorca';
+  
+  if(flight.carrier.fs.length>2) {
+    if(ICAO_IATA_CODES[flight.carrier.fs]){
+      flight.carrier.fs = ICAO_IATA_CODES[flight.carrier.fs]
+    }
+  }
 
   return {
     flight_id: `${flight.carrier.fs}${flight.carrier.flightNumber}_${departureDate}`,
