@@ -54,7 +54,7 @@ function transformFlightData(
     arrival_date: arrivalDate,
     duration: calculateDuration(departureTime, arrivalTime, departureDate !== arrivalDate),
     company: flight.carrier.name,
-    company_logo: `https://raw.githubusercontent.com/spydogenesis/airlines-logo/refs/heads/main/airlines-logo/200x200_v2/${flight.carrier.fs}.png`,
+    company_logo: `https://cdn.jsdelivr.net/gh/spydogenesis/airlines-logo@latest/airlines-logo/200x200_v2/${flight.carrier.fs}.png`,
     flight: `${flight.carrier.fs}${flight.carrier.flightNumber}`
   };
 }
