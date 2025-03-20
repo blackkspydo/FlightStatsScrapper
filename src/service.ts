@@ -42,8 +42,8 @@ function transformFlightData(
   const destinationIata = type === 'departures' ? flight.airport.fs : CONFIG.AIRPORT;
   const originName = type === 'departures' ? 'Palma de Mallorca' : flight.airport.city;
   const destinationName = type === 'departures' ? flight.airport.city : 'Palma de Mallorca';
-  
-  if(flight.carrier.fs.length>2) {
+  flight.carrier.fs = flight.carrier.fs.replace(/[^a-zA-Z0-9]/g, '') 
+   if(flight.carrier.fs.length>2) {
     if(ICAO_IATA_CODES[flight.carrier.fs]){
       flight.carrier.fs = ICAO_IATA_CODES[flight.carrier.fs]
     }
